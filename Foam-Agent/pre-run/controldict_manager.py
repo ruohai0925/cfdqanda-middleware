@@ -182,7 +182,10 @@ class ControlDictManager:
 
     def add_function_objects(self) -> None:
         """
-        Add fieldMinMax and fieldAverage function objects to controlDict.
+        Add cellMax, cellMin, and fieldAverage function objects to controlDict.
+
+        Uses volFieldValue (cellMax/cellMin) for OpenFOAM 10 compatibility
+        (fieldMinMax does not exist in v10).
 
         The function objects are wrapped with marker comments so they can be
         precisely removed later by remove_function_objects().
@@ -208,7 +211,7 @@ class ControlDictManager:
             + "\n"
         )
         self._write_file(new_content)
-        logger.info("Added checkpoint function objects (fieldMinMax + fieldAverage).")
+        logger.info("Added checkpoint function objects (cellMax + cellMin + fieldAverage).")
 
     def remove_function_objects(self) -> None:
         """

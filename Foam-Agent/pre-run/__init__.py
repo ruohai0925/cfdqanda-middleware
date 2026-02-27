@@ -1,8 +1,11 @@
 """
 CFDQandA Checkpoint Middleware — Foam-Agent Pre-Run Module.
 
-Provides two-phase simulation support (pre-run + normal-run)
-without modifying Foam-Agent source code.
+Provides two-phase simulation support (pre-run + full-run)
+for the controlled pipeline mode, without modifying Foam-Agent source code.
+
+Used by worker.py's ``_mcp_stage_pre_run()`` (PreRunExecutor) and
+``_mcp_stage_full_run()`` (NormalRunPreparer).
 """
 
 from .controldict_manager import ControlDictManager

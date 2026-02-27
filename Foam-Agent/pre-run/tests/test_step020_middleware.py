@@ -149,11 +149,12 @@ class TestControlDictManager(unittest.TestCase):
         self.assertIn(_MARKER_BEGIN, content)
         self.assertIn(_MARKER_END, content)
 
-    def test_add_function_objects_includes_fieldMinMax(self):
+    def test_add_function_objects_includes_cell_min_max(self):
         self.mgr.add_function_objects()
         content = self._read_controldict()
-        self.assertIn("fieldMinMax", content)
-        self.assertIn("type            fieldMinMax;", content)
+        self.assertIn("cellMax", content)
+        self.assertIn("cellMin", content)
+        self.assertIn("type            volFieldValue;", content)
 
     def test_add_function_objects_includes_fieldAverage(self):
         self.mgr.add_function_objects()
@@ -187,7 +188,8 @@ class TestControlDictManager(unittest.TestCase):
         content = self._read_controldict()
         self.assertNotIn(_MARKER_BEGIN, content)
         self.assertNotIn(_MARKER_END, content)
-        self.assertNotIn("fieldMinMax", content)
+        self.assertNotIn("cellMax", content)
+        self.assertNotIn("cellMin", content)
         self.assertNotIn("fieldAverage", content)
 
     def test_remove_function_objects_noop_when_absent(self):
@@ -270,7 +272,8 @@ class TestPreRunExecutor(unittest.TestCase):
         with open(self.controldict_path) as f:
             content = f.read()
         self.assertIn(_MARKER_BEGIN, content)
-        self.assertIn("fieldMinMax", content)
+        self.assertIn("cellMax", content)
+        self.assertIn("cellMin", content)
 
     def test_prepare_creates_backup(self):
         executor = PreRunExecutor(self.case_dir, pre_run_end_time=10)
@@ -296,11 +299,16 @@ class TestPreRunExecutor(unittest.TestCase):
         """collect_results() should read postProcessing data if available."""
         executor = PreRunExecutor(self.case_dir, pre_run_end_time=10)
 
-        # Create synthetic postProcessing data
-        min_max_dir = os.path.join(self.case_dir, "postProcessing", "fieldMinMax", "0")
-        os.makedirs(min_max_dir)
-        with open(os.path.join(min_max_dir, "fieldMinMax.dat"), "w") as f:
-            f.write("# Time\tp_min\tp_max\n0\t-100\t200\n")
+        # Create synthetic postProcessing data matching cellMax/cellMin structure
+        cell_max_dir = os.path.join(self.case_dir, "postProcessing", "cellMax", "0")
+        os.makedirs(cell_max_dir)
+        with open(os.path.join(cell_max_dir, "volFieldValue.dat"), "w") as f:
+            f.write("# Time\tp_max\tUx_max\n0\t200\t5.0\n")
+
+        cell_min_dir = os.path.join(self.case_dir, "postProcessing", "cellMin", "0")
+        os.makedirs(cell_min_dir)
+        with open(os.path.join(cell_min_dir, "volFieldValue.dat"), "w") as f:
+            f.write("# Time\tp_min\tUx_min\n0\t-100\t0.0\n")
 
         avg_dir = os.path.join(self.case_dir, "postProcessing", "fieldAverage", "0")
         os.makedirs(avg_dir)
@@ -309,7 +317,8 @@ class TestPreRunExecutor(unittest.TestCase):
 
         results = executor.collect_results()
         self.assertIsNotNone(results["field_min_max"])
-        self.assertIn("0", results["field_min_max"])
+        self.assertIn("cellMax", results["field_min_max"])
+        self.assertIn("cellMin", results["field_min_max"])
         self.assertIsNotNone(results["field_average"])
         self.assertIn("0", results["field_average"])
 
@@ -336,9 +345,9 @@ class TestPreRunExecutor(unittest.TestCase):
                 f.write(f"p at {ts}")
 
         # postProcessing directory
-        pp_dir = os.path.join(self.case_dir, "postProcessing", "fieldMinMax", "0")
+        pp_dir = os.path.join(self.case_dir, "postProcessing", "cellMax", "0")
         os.makedirs(pp_dir)
-        with open(os.path.join(pp_dir, "data.dat"), "w") as f:
+        with open(os.path.join(pp_dir, "volFieldValue.dat"), "w") as f:
             f.write("test data")
 
         # Run cleanup
@@ -396,9 +405,9 @@ class TestNormalRunPreparer(unittest.TestCase):
                 f.write("sample log content\n")
 
         # Create postProcessing directory
-        pp_dir = os.path.join(self.case_dir, "postProcessing", "fieldMinMax", "0")
+        pp_dir = os.path.join(self.case_dir, "postProcessing", "cellMax", "0")
         os.makedirs(pp_dir)
-        with open(os.path.join(pp_dir, "data.dat"), "w") as f:
+        with open(os.path.join(pp_dir, "volFieldValue.dat"), "w") as f:
             f.write("data\n")
 
         # Create constant/ and system/ (should not be touched)
@@ -419,7 +428,8 @@ class TestNormalRunPreparer(unittest.TestCase):
         with open(self.controldict_path) as f:
             content = f.read()
         self.assertNotIn(_MARKER_BEGIN, content)
-        self.assertNotIn("fieldMinMax", content)
+        self.assertNotIn("cellMax", content)
+        self.assertNotIn("cellMin", content)
 
     def test_clean_timestep_dirs_keeps_zero(self):
         preparer = NormalRunPreparer(self.case_dir, original_end_time="100")
@@ -513,7 +523,7 @@ class TestEndToEndPreRunNormalRun(unittest.TestCase):
         # Simulate pre-run producing timestep dirs
         for t in ["1", "2", "3", "4", "5"]:
             os.makedirs(os.path.join(self.case_dir, t))
-        os.makedirs(os.path.join(self.case_dir, "postProcessing", "fieldMinMax", "0"), exist_ok=True)
+        os.makedirs(os.path.join(self.case_dir, "postProcessing", "cellMax", "0"), exist_ok=True)
 
         # Phase 2: Normal-run prepare
         preparer = NormalRunPreparer(self.case_dir, original_end_time="100")

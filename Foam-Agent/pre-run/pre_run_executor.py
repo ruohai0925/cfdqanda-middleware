@@ -223,8 +223,8 @@ class PreRunExecutor:
         Collect pre-run diagnostic outputs.
 
         Strategy (in order):
-            1. If postProcessing/ exists (from function objects), use it
-            2. Otherwise, run `postProcess -func fieldMinMax` to extract field stats
+            1. If postProcessing/ exists (from function objects), use cellMax/cellMin data
+            2. Otherwise, run ``postProcess -func cellMax/cellMin`` to extract field stats
             3. Always parse the solver log for residuals and Courant number
 
         Returns:
@@ -262,17 +262,21 @@ class PreRunExecutor:
 
         # --- Strategy 2: Run postProcess utility if field_min_max is still empty ---
         if results["field_min_max"] is None:
-            results["field_min_max"] = self._run_post_process_field_min_max()
+            results["field_min_max"] = self._run_post_process_cell_min_max()
 
         # --- Strategy 3: Always parse solver log ---
         results["solver_log"] = self._parse_solver_log()
 
         return results
 
-    def _run_post_process_field_min_max(self) -> dict:
+    def _run_post_process_cell_min_max(self) -> dict:
         """
-        Run OpenFOAM `postProcess -func cellMax` and `postProcess -func cellMin`
+        Run OpenFOAM ``postProcess -func cellMax`` and ``postProcess -func cellMin``
         to extract field variable min/max values (OpenFOAM 10 compatible).
+
+        This is a fallback used only when the function objects added by
+        ``ControlDictManager.add_function_objects()`` did not produce
+        a postProcessing/ directory during the pre-run.
 
         Returns:
             dict with field min/max data, or None on failure.
