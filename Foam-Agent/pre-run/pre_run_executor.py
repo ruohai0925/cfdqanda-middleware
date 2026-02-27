@@ -176,7 +176,7 @@ class PreRunExecutor:
         abs_allrun = os.path.abspath(allrun_path)
 
         if os.path.isfile(bashrc_path):
-            command = ["bash", "-c", f"source {bashrc_path} && bash {abs_allrun}"]
+            command = ["bash", "-c", f"source {bashrc_path} && bash '{abs_allrun}'"]
             logger.info(f"Sourcing OpenFOAM env from {bashrc_path}")
         else:
             # Fallback: run without sourcing (OpenFOAM may already be in PATH)
@@ -283,9 +283,9 @@ class PreRunExecutor:
         results = {}
         for func_name in ("cellMax", "cellMin"):
             if os.path.isfile(bashrc_path):
-                cmd = f"source {bashrc_path} && postProcess -func {func_name} -latestTime -case {self.case_dir}"
+                cmd = f"source {bashrc_path} && postProcess -func {func_name} -latestTime -case '{self.case_dir}'"
             else:
-                cmd = f"postProcess -func {func_name} -latestTime -case {self.case_dir}"
+                cmd = f"postProcess -func {func_name} -latestTime -case '{self.case_dir}'"
 
             try:
                 result = subprocess.run(
