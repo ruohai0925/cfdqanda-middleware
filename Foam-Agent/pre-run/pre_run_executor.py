@@ -267,6 +267,9 @@ class PreRunExecutor:
         # --- Strategy 3: Always parse solver log ---
         results["solver_log"] = self._parse_solver_log()
 
+        # --- Always check mesh size ---
+        results["mesh_check"] = self._check_mesh_size()
+
         return results
 
     def _run_post_process_cell_min_max(self) -> dict:
@@ -409,6 +412,68 @@ class PreRunExecutor:
             f"{len(result['residuals'])} residual fields, "
             f"Courant max={result['courant'].get('max', 'N/A')}"
         )
+        return result
+
+    MESH_CELL_WARN_THRESHOLD = 2_000_000
+
+    def _check_mesh_size(self) -> dict:
+        """
+        Parse mesh log files to extract cell count.
+        Checks log.blockMesh, log.snappyHexMesh, or runs checkMesh as fallback.
+
+        Returns:
+            dict with keys: cells, warning (if cells > threshold), source
+        """
+        result = {"cells": None, "warning": None, "source": None}
+
+        # Try parsing log.blockMesh or log.snappyHexMesh for cell count
+        # OpenFOAM logs: "nCells: 12345" or "cells:  12345"
+        for log_name in ("log.blockMesh", "log.snappyHexMesh", "log.checkMesh"):
+            log_path = os.path.join(self.case_dir, log_name)
+            if not os.path.isfile(log_path):
+                continue
+            try:
+                with open(log_path, "r") as f:
+                    content = f.read()
+                # Match patterns like "nCells: 12345" or "cells:  12345"
+                match = re.search(r'(?:nCells|^\s*cells)\s*[:=]\s*(\d+)', content, re.MULTILINE)
+                if match:
+                    result["cells"] = int(match.group(1))
+                    result["source"] = log_name
+                    break
+            except Exception as e:
+                logger.warning(f"Error reading {log_name}: {e}")
+
+        # Fallback: run checkMesh and parse output
+        if result["cells"] is None:
+            openfoam_dir = os.environ.get("WM_PROJECT_DIR", "/opt/openfoam10")
+            bashrc_path = os.path.join(openfoam_dir, "etc", "bashrc")
+            if os.path.isfile(bashrc_path):
+                cmd = f"source {bashrc_path} && checkMesh -case '{self.case_dir}' 2>&1"
+            else:
+                cmd = f"checkMesh -case '{self.case_dir}' 2>&1"
+            try:
+                proc = subprocess.run(
+                    ["bash", "-c", cmd], capture_output=True, text=True, timeout=30,
+                )
+                match = re.search(r'(?:nCells|^\s*cells)\s*[:=]\s*(\d+)', proc.stdout, re.MULTILINE)
+                if match:
+                    result["cells"] = int(match.group(1))
+                    result["source"] = "checkMesh"
+            except Exception as e:
+                logger.warning(f"checkMesh fallback failed: {e}")
+
+        if result["cells"] is not None:
+            if result["cells"] > self.MESH_CELL_WARN_THRESHOLD:
+                result["warning"] = (
+                    f"Mesh has {result['cells']:,} cells (threshold: "
+                    f"{self.MESH_CELL_WARN_THRESHOLD:,}). Large meshes may cause "
+                    f"slow convergence or memory issues on single-core execution."
+                )
+                logger.warning(f"Mesh cell count warning: {result['cells']:,} cells")
+            else:
+                logger.info(f"Mesh cell count: {result['cells']:,} (OK)")
+
         return result
 
     def _collect_post_processing_data(self, func_dir: str) -> dict:
